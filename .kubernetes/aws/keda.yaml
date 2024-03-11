@@ -1,0 +1,26 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: &component-name keda-scale-go-worker-transfer
+  namespace: test-a
+  labels:
+    app: *component-name
+spec:
+  scaleTargetRef:
+    name: go-worker-transfer
+  pollingInterval: 30
+  cooldownPeriod:  60
+  idleReplicaCount: 0 # Optional. Default: 0
+  minReplicaCount: 0 # Optional. Default: 0
+  maxReplicaCount: 6 # Optional. Default: 6
+  triggers:
+  - type: kafka
+    metadata:
+      bootstrapServers: "b-1.mskarchtest03.p70t1p.c6.kafka.us-east-2.amazonaws.com:9092,b-2.mskarchtest03.p70t1p.c6.kafka.us-east-2.amazonaws.com:9092,b-3.mskarchtest03.p70t1p.c6.kafka.us-east-2.amazonaws.com:9092"
+      consumerGroup: "GROUP-GO-WORKER-TRANSFER-01"   # Make sure that this consumer group name is the same one as the one that is consuming topics
+      topic: topic.transfer.01
+      # Optional
+      lagThreshold: "5"
+      offsetResetPolicy: latest
+    authenticationRef:
+      name: keda-auth-go-worker-transfer

@@ -14,4 +14,5 @@ var (
 	ErrUpdate			= errors.New("Erro no update do dado")
 	ErrTransInvalid		= errors.New("Erro de transação invalida")
 	ErrEvent			= errors.New("Erro no tratamento de evento")
+	ErrCurrency			= errors.New("Erro moeda invalida")
 )

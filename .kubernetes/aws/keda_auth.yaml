@@ -1,0 +1,15 @@
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: &component-name keda-auth-go-worker-transfer
+  namespace: test-a
+  labels:
+    app: *component-name
+spec:
+  secretTargetRef:
+  - parameter: username
+    name: es-msk-go-worker-transfer
+    key: username
+  - parameter: password
+    name: es-msk-go-worker-transfer
+    key: password

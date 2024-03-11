@@ -21,10 +21,26 @@ func (s WorkerService) Transfer(ctx context.Context, transfer core.Transfer) (er
 		return err
 	}
 
+	err = s.producerWorker.BeginTransaction()
+	if err != nil {
+		childLogger.Error().Err(err).Msg("Failed to Kafka BeginTransaction")
+		return err
+	}
+
 	defer func() {
 		if err != nil {
+			childLogger.Error().Err(err).Msg("service.Transfer ROLLBACK")
+			err := s.producerWorker.AbortTransaction(ctx)
+			if err != nil {
+				childLogger.Error().Err(err).Msg("Failed to Kafka AbortTransaction")
+			}
 			tx.Rollback()
 		} else {
+			childLogger.Error().Err(err).Msg("service.Transfer COMMIT")
+			err = s.producerWorker.CommitTransaction(ctx)
+			if err != nil {
+				childLogger.Error().Err(err).Msg("Failed to Kafka CommitTransaction")
+			}
 			tx.Commit()
 		}
 	}()
@@ -51,8 +67,6 @@ func (s WorkerService) Transfer(ctx context.Context, transfer core.Transfer) (er
 		EventType: s.topic.Dedit,
 		EventData:	&eventDataFrom,	
 	}
-
-	childLogger.Debug().Interface("===>eventDataFrom:",eventDataFrom).Msg("")
 
 	err = s.producerWorker.Producer(ctx, event)
 	if err != nil {
@@ -90,8 +104,6 @@ func (s WorkerService) Transfer(ctx context.Context, transfer core.Transfer) (er
 		EventData:	&eventDataTo,	
 	}
 
-	childLogger.Debug().Interface("===>eventDataTo:",eventDataTo).Msg("")
-
 	err = s.producerWorker.Producer(ctx, event)
 	if err != nil {
 		return err
@@ -119,7 +131,13 @@ func (s WorkerService) Transfer(ctx context.Context, transfer core.Transfer) (er
 	}
 
 	if transfer.Status != "TRANSFER_DONE"{
-		return erro.ErrEvent
+		err = erro.ErrEvent
+		return err
+	}
+
+	if transfer.Currency != "BRL"{
+		err = erro.ErrCurrency
+		return err
 	}
 
 	return nil

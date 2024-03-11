@@ -3,7 +3,7 @@ package producer
 import (
 	"encoding/json"
 	"context"
-//	"fmt"
+	"fmt"
 //	"time"
 
 	"github.com/rs/zerolog/log"
@@ -19,7 +19,7 @@ type ProducerWorker struct{
 	producer        *kafka.Producer
 }
 
-func NewProducerWorker(configurations *core.KafkaConfig) ( *ProducerWorker, error) {
+func NewProducerWorker(ctx context.Context, configurations *core.KafkaConfig) ( *ProducerWorker, error) {
 	childLogger.Debug().Msg("NewProducerWorker")
 
 	kafkaBrokerUrls := 	configurations.KafkaConfigurations.Brokers1 + "," + configurations.KafkaConfigurations.Brokers2 + "," + configurations.KafkaConfigurations.Brokers3
@@ -35,32 +35,20 @@ func NewProducerWorker(configurations *core.KafkaConfig) ( *ProducerWorker, erro
 								"retry.backoff.ms":				500,
 								"enable.idempotence":			true,
 								"go.logs.channel.enable": 		true, 
-							//	"transactional.id":       		fmt.Sprintf("go-transactions-example-p%d", 0),                   
+								"transactional.id":       		fmt.Sprintf("go-transactions-example-p%d", 0),                   
 								}
 
 	producer, err := kafka.NewProducer(config)
 	if err != nil {
-		childLogger.Error().Err(err).Msg("Failed to create producer:")
+		childLogger.Error().Err(err).Msg("Failed to NewProducer")
 		return nil, err
 	}
 
-	/*maxDuration, err := time.ParseDuration("10s")
+	err = producer.InitTransactions(ctx);
 	if err != nil {
+		childLogger.Error().Err(err).Msg("Failed to InitTransactions")
 		return nil, err
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), maxDuration)
-	defer cancel()
-
-	err = producer.InitTransactions(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	err = producer.BeginTransaction()
-	if err != nil {
-		return nil, err
-	}*/
 
 	return &ProducerWorker{ 	configurations : configurations,
 								producer : producer,
@@ -86,9 +74,8 @@ func (p *ProducerWorker) Producer(ctx context.Context, event core.Event) error{
 	childLogger.Debug().Interface("Event ==>",event.EventData).Msg("")
 	childLogger.Debug().Msg("++++++++++++++++++++++++++++++++")
 
-	producer := p.producer
 	deliveryChan := make(chan kafka.Event)
-	err = producer.Produce(	&kafka.Message	{	TopicPartition: kafka.TopicPartition{	Topic: &event.EventType, 
+	err = p.producer.Produce(	&kafka.Message	{	TopicPartition: kafka.TopicPartition{	Topic: &event.EventType, 
 																						Partition: kafka.PartitionAny },
 									Key:    []byte(key),											
 									Value: 	[]byte(payload), 
@@ -116,5 +103,32 @@ func (p *ProducerWorker) Producer(ctx context.Context, event core.Event) error{
 	}
 	close(deliveryChan)
 
+	return nil
+}
+
+func (p *ProducerWorker) BeginTransaction() error{
+	err := p.producer.BeginTransaction();
+	if err != nil {
+		childLogger.Error().Err(err).Msg("Failed to BeginTransaction")
+		return err
+	}
+	return nil
+}
+
+func (p *ProducerWorker) CommitTransaction(ctx context.Context) error{
+	err := p.producer.CommitTransaction(ctx);
+	if err != nil {
+		childLogger.Error().Err(err).Msg("Failed to CommitTransaction")
+		return err
+	}
+	return nil
+}
+
+func (p *ProducerWorker) AbortTransaction(ctx context.Context) error{
+	err := p.producer.AbortTransaction(ctx);
+	if err != nil {
+		childLogger.Error().Err(err).Msg("Failed to AbortTransaction")
+		return err
+	}
 	return nil
 }

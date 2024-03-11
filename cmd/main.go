@@ -192,7 +192,7 @@ func main()  {
 	log.Debug().Msg("main")
 	log.Info().Interface("infoPod: ",infoPod).Msg("")
 
-	ctx := context.Background()
+	ctx :=context.Background()
 
 	// Open Database
 	count := 1
@@ -214,7 +214,7 @@ func main()  {
 	}
 
 	// Setup msk
-	producerWorker, err := producer.NewProducerWorker(&envKafka)
+	producerWorker, err := producer.NewProducerWorker(ctx, &envKafka)
 	if err != nil {
 		log.Error().Err(err).Msg("Erro na abertura do Kafka")
 	}
