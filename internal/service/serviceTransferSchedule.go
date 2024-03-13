@@ -13,7 +13,7 @@ func (s WorkerService) Transfer(ctx context.Context, transfer core.Transfer) (er
 	childLogger.Debug().Msg("Transfer")
 	childLogger.Debug().Interface("===>transfer:",transfer).Msg("")
 	
-	ctx, svcspan := otel.Tracer("go-worker-transfer").Start(ctx,"svc.Transfer")
+	ctx, svcspan := otel.Tracer("go-worker-transfer").Start(ctx,"svc.transfer")
 	defer svcspan.End()
 
 	tx, err := s.workerRepository.StartTx(ctx)

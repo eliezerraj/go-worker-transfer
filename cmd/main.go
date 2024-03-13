@@ -110,6 +110,9 @@ func getEnv() {
 	if os.Getenv("POD_NAME") !=  "" {
 		infoPod.PodName = os.Getenv("POD_NAME")
 	}
+	if os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") !=  "" {	
+		infoPod.OtelExportEndpoint = os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	}
 
 	if os.Getenv("DB_HOST") !=  "" {
 		envDB.Host = os.Getenv("DB_HOST")
@@ -126,7 +129,7 @@ func getEnv() {
 	if os.Getenv("DB_DRIVER") !=  "" {	
 		envDB.Postgres_Driver = os.Getenv("DB_DRIVER")
 	}
-	
+
 	if os.Getenv("SERVER_URL_DOMAIN") !=  "" {	
 		serverUrlDomain = os.Getenv("SERVER_URL_DOMAIN")
 	}
@@ -227,13 +230,18 @@ func main()  {
 												producerWorker, 
 												&topic,
 											)
-	consumerWorker, err := event.NewConsumerWorker(ctx, &envKafka, workerService)
+	consumerWorker, err := event.NewConsumerWorker(	ctx, 
+													&envKafka, 
+													workerService,
+													&infoPod)
 	if err != nil {
 		log.Error().Err(err).Msg("Erro na abertura do Kafka")
 	}
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	go consumerWorker.Consumer(ctx, &wg, topic.Transfer)
+	go consumerWorker.Consumer(	ctx, 
+								&wg, 
+								topic.Transfer)
 	wg.Wait()
 }

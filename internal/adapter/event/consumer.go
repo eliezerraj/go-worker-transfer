@@ -7,13 +7,18 @@ import (
 	"sync"
 	"context"
 	"encoding/json"
-	"strconv"
+	//"strconv"
 
 	"github.com/rs/zerolog/log"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/go-worker-transfer/internal/core"
 	"github.com/go-worker-transfer/internal/service"
+
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/contrib/propagators/aws/xray"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+
 )
 
 var childLogger = log.With().Str("adpater", "event").Logger()
@@ -22,11 +27,13 @@ type ConsumerWorker struct{
 	configurations  *core.KafkaConfig
 	consumer        *kafka.Consumer
 	workerService	*service.WorkerService
+	infoPod 		*core.InfoPod
 }
 
 func NewConsumerWorker(	ctx context.Context, 
 						configurations *core.KafkaConfig,
-						workerService	*service.WorkerService ) (*ConsumerWorker, error) {
+						workerService	*service.WorkerService,
+						infoPod *core.InfoPod) (*ConsumerWorker, error) {
 	childLogger.Debug().Msg("NewConsumerWorker")
 
 	kafkaBrokerUrls := 	configurations.KafkaConfigurations.Brokers1 + "," + configurations.KafkaConfigurations.Brokers2 + "," + configurations.KafkaConfigurations.Brokers3
@@ -54,17 +61,48 @@ func NewConsumerWorker(	ctx context.Context,
 	return &ConsumerWorker{ configurations: configurations,
 							consumer: 		consumer,
 							workerService: 	workerService,
+							infoPod: infoPod,
 	}, nil
 }
 
-func (c *ConsumerWorker) Consumer(ctx context.Context, wg *sync.WaitGroup, topic string) {
+func (c *ConsumerWorker) Consumer(	ctx context.Context, 
+									wg *sync.WaitGroup, 
+									topic string) {
 	childLogger.Debug().Msg("Consumer")
+
+	// ---------------------- OTEL ---------------
+	childLogger.Info().Str("OTEL_EXPORTER_OTLP_ENDPOINT :", c.infoPod.OtelExportEndpoint).Msg("")
+
+	traceExporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithInsecure(), otlptracegrpc.WithEndpoint(c.infoPod.OtelExportEndpoint)	)
+	if err != nil {
+		childLogger.Error().Err(err).Msg("ERRO otlptracegrpc")
+	}
+	idg := xray.NewIDGenerator()
+
+	tp := sdktrace.NewTracerProvider(	sdktrace.WithSampler(sdktrace.AlwaysSample()),
+										sdktrace.WithBatcher(traceExporter),
+										sdktrace.WithIDGenerator(idg),
+									)
+
+	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(xray.Propagator{})
+	// ----------------------------------
+
+	defer func() {
+		err = tp.Shutdown(ctx)
+		if err != nil{
+			childLogger.Error().Err(err).Msg("Erro closing OTEL tracer !!!")
+		}
+		childLogger.Debug().Msg("Closing consumer waiting please !!!")
+		c.consumer.Close()
+		wg.Done()
+	}()
 
 	topics := []string{topic}
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
 
-	err := c.consumer.SubscribeTopics(topics, nil)
+	err = c.consumer.SubscribeTopics(topics, nil)
 	if err != nil {
 		childLogger.Error().Err(err).Msg("Failed to subscriber topic")
 	}
@@ -89,7 +127,14 @@ func (c *ConsumerWorker) Consumer(ctx context.Context, wg *sync.WaitGroup, topic
 				case kafka.PartitionEOF:
 					childLogger.Error().Interface("kafka.PartitionEOF: ",e).Msg("")
 				case *kafka.Message:
-					
+
+					newSegment := "go-worker-transfer"
+					ctx, svcspan := otel.Tracer(newSegment).Start(ctx,"adapter.event.consumer")
+
+					//newSegment := "go-worker-transfer:"+ event.EventData.Transfer.AccountIDTo + ":" + strconv.Itoa(event.EventData.Transfer.ID)
+					//ctx, svcspan := otel.Tracer(newSegment).Start(ctx,"adapter.event.consumer")
+					//svcspan.End()
+
 					log.Print("----------------------------------")
 					if e.Headers != nil {
 						log.Printf("Headers: %v\n", e.Headers)
@@ -99,19 +144,18 @@ func (c *ConsumerWorker) Consumer(ctx context.Context, wg *sync.WaitGroup, topic
 					
 					event := core.Event{}
 					json.Unmarshal(e.Value, &event)
-
-					newSegment := "go-worker-transfer:"+ event.EventData.Transfer.AccountIDTo + ":" + strconv.Itoa(event.EventData.Transfer.ID)
-					ctx, svcspan := otel.Tracer(newSegment).Start(ctx,"svc.Transfer")
-					defer svcspan.End()
-
+					
 					err = c.workerService.Transfer(ctx, *event.EventData.Transfer)
 					if err != nil {
 						childLogger.Error().Err(err).Msg("Erro no Consumer.Transfer")
-						childLogger.Debug().Msg("ROLLBACK!!!!")
+						childLogger.Debug().Msg("CONSUMER ROLLBACK!!!!")
 					} else {
-						childLogger.Debug().Msg("COMMIT!!!!")
+						childLogger.Debug().Msg("CONSUMER COMMIT!!!!")
 						c.consumer.Commit()
 					}
+
+					svcspan.End()
+					
 				case kafka.Error:
 					childLogger.Error().Err(e).Msg("kafka.Error")
 					if e.Code() == kafka.ErrAllBrokersDown {
@@ -123,7 +167,4 @@ func (c *ConsumerWorker) Consumer(ctx context.Context, wg *sync.WaitGroup, topic
 		}
 	}
 
-	childLogger.Debug().Msg("Closing consumer waiting please !!!")
-	c.consumer.Close()
-	defer wg.Done()
 }

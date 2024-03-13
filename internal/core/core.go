@@ -23,4 +23,5 @@ type InfoPod struct {
 	AvailabilityZone 	string `json:"availabilityZone"`
 	Database			*DatabaseRDS
 	Kafka				*KafkaConfig
+	OtelExportEndpoint	string `json:"otel_export_endpoint"`
 }

@@ -59,7 +59,7 @@ func (w WorkerRepository) Update(ctx context.Context, tx *sql.Tx, transfer core.
 	childLogger.Debug().Msg("Update")
 	childLogger.Debug().Interface("transfer : ", transfer).Msg("")
 
-	ctx, repospan := otel.Tracer("go-payment").Start(ctx,"repo.WorkerTransfer.Update")
+	ctx, repospan := otel.Tracer("go-worker-transfer").Start(ctx,"repo.update")
 	defer repospan.End()
 
 	stmt, err := tx.Prepare(`Update transfer_moviment
@@ -90,7 +90,7 @@ func (w WorkerRepository) AddTransferMoviment(ctx context.Context, tx *sql.Tx ,t
 	childLogger.Debug().Msg("AddTransferMoviment")
 	childLogger.Debug().Interface("transfer:",transfer).Msg("")
 
-	ctx, repospan := otel.Tracer("go-payment").Start(ctx,"repo.WorkerTransfer.addTransferMoviment")
+	ctx, repospan := otel.Tracer("go-worker-transfer").Start(ctx,"repo.addTransferMoviment")
 	defer repospan.End()
 
 	stmt, err := tx.Prepare(`INSERT INTO transfer_moviment ( 	fk_account_id_from, 
