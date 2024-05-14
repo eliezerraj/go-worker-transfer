@@ -19,7 +19,8 @@ type ProducerWorker struct{
 	producer        *kafka.Producer
 }
 
-func NewProducerWorker(ctx context.Context, configurations *core.KafkaConfig) ( *ProducerWorker, error) {
+func NewProducerWorker(ctx context.Context, 
+						configurations *core.KafkaConfig) ( *ProducerWorker, error) {
 	childLogger.Debug().Msg("NewProducerWorker")
 
 	kafkaBrokerUrls := 	configurations.KafkaConfigurations.Brokers1 + "," + configurations.KafkaConfigurations.Brokers2 + "," + configurations.KafkaConfigurations.Brokers3

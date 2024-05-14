@@ -6,10 +6,35 @@ import (
 	"github.com/go-worker-transfer/internal/core"
 	"github.com/go-worker-transfer/internal/erro"
 	"go.opentelemetry.io/otel"
-
+	
+	"github.com/rs/zerolog/log"
+	"github.com/go-worker-transfer/internal/repository/postgre"
+	//"github.com/go-worker-transfer/internal/adapter/restapi"
+	"github.com/go-worker-transfer/internal/adapter/event/producer"
 )
 
-func (s WorkerService) Transfer(ctx context.Context, transfer core.Transfer) (error){
+var childLogger = log.With().Str("service", "service").Logger()
+
+type WorkerService struct {
+	workerRepository 		*postgre.WorkerRepository
+	producerWorker			*producer.ProducerWorker
+	topic					*core.Topic
+}
+
+func NewWorkerService(	workerRepository 	*postgre.WorkerRepository,
+						producerWorker		*producer.ProducerWorker,
+						topic				*core.Topic ) *WorkerService{
+	childLogger.Debug().Msg("NewWorkerService")
+
+	return &WorkerService{
+		workerRepository:	workerRepository,
+		producerWorker: 	producerWorker,
+		topic:				topic,
+	}
+}
+
+func (s WorkerService) Transfer(ctx context.Context, 
+								transfer core.Transfer) (error){
 	childLogger.Debug().Msg("Transfer")
 	childLogger.Debug().Interface("===>transfer:",transfer).Msg("")
 	
@@ -64,7 +89,7 @@ func (s WorkerService) Transfer(ctx context.Context, transfer core.Transfer) (er
 	event := core.Event{
 		Key: transfer.AccountIDFrom,
 		EventDate: time.Now(),
-		EventType: s.topic.Dedit,
+		EventType: s.topic.Debit,
 		EventData:	&eventDataFrom,	
 	}
 

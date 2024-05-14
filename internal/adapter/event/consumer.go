@@ -7,7 +7,6 @@ import (
 	"sync"
 	"context"
 	"encoding/json"
-	//"strconv"
 
 	"github.com/rs/zerolog/log"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
@@ -27,13 +26,13 @@ type ConsumerWorker struct{
 	configurations  *core.KafkaConfig
 	consumer        *kafka.Consumer
 	workerService	*service.WorkerService
-	infoPod 		*core.InfoPod
+	configOTEL 		*core.ConfigOTEL
 }
 
 func NewConsumerWorker(	ctx context.Context, 
 						configurations *core.KafkaConfig,
 						workerService	*service.WorkerService,
-						infoPod *core.InfoPod) (*ConsumerWorker, error) {
+						configOTEL 		*core.ConfigOTEL) (*ConsumerWorker, error) {
 	childLogger.Debug().Msg("NewConsumerWorker")
 
 	kafkaBrokerUrls := 	configurations.KafkaConfigurations.Brokers1 + "," + configurations.KafkaConfigurations.Brokers2 + "," + configurations.KafkaConfigurations.Brokers3
@@ -61,7 +60,7 @@ func NewConsumerWorker(	ctx context.Context,
 	return &ConsumerWorker{ configurations: configurations,
 							consumer: 		consumer,
 							workerService: 	workerService,
-							infoPod: infoPod,
+							configOTEL: 	configOTEL,
 	}, nil
 }
 
@@ -71,9 +70,11 @@ func (c *ConsumerWorker) Consumer(	ctx context.Context,
 	childLogger.Debug().Msg("Consumer")
 
 	// ---------------------- OTEL ---------------
-	childLogger.Info().Str("OTEL_EXPORTER_OTLP_ENDPOINT :", c.infoPod.OtelExportEndpoint).Msg("")
+	childLogger.Info().Str("OTEL_EXPORTER_OTLP_ENDPOINT :", c.configOTEL.OtelExportEndpoint).Msg("")
 
-	traceExporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithInsecure(), otlptracegrpc.WithEndpoint(c.infoPod.OtelExportEndpoint)	)
+	traceExporter, err := otlptracegrpc.New(ctx, 
+											otlptracegrpc.WithInsecure(), 
+											otlptracegrpc.WithEndpoint(c.configOTEL.OtelExportEndpoint)	)
 	if err != nil {
 		childLogger.Error().Err(err).Msg("ERRO otlptracegrpc")
 	}
