@@ -89,6 +89,6 @@ func main()  {
 	wg.Add(1)
 	go consumerWorker.Consumer(	ctx, 
 								&wg, 
-								appServer.KafkaConfig.Topic.Transfer)
+								appServer)
 	wg.Wait()
 }

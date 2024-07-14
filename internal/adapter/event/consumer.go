@@ -12,15 +12,15 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/go-worker-transfer/internal/core"
 	"github.com/go-worker-transfer/internal/service"
+	"github.com/go-worker-transfer/internal/lib"
 
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/contrib/propagators/aws/xray"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-
 )
 
 var childLogger = log.With().Str("adpater", "event").Logger()
+var tracer 			trace.Tracer
 
 type ConsumerWorker struct{
 	configurations  *core.KafkaConfig
@@ -66,31 +66,20 @@ func NewConsumerWorker(	ctx context.Context,
 
 func (c *ConsumerWorker) Consumer(	ctx context.Context, 
 									wg *sync.WaitGroup, 
-									topic string) {
+									appServer core.WorkerAppServer) {
 	childLogger.Debug().Msg("Consumer")
 
 	// ---------------------- OTEL ---------------
 	childLogger.Info().Str("OTEL_EXPORTER_OTLP_ENDPOINT :", c.configOTEL.OtelExportEndpoint).Msg("")
 
-	traceExporter, err := otlptracegrpc.New(ctx, 
-											otlptracegrpc.WithInsecure(), 
-											otlptracegrpc.WithEndpoint(c.configOTEL.OtelExportEndpoint)	)
-	if err != nil {
-		childLogger.Error().Err(err).Msg("ERRO otlptracegrpc")
-	}
-	idg := xray.NewIDGenerator()
-
-	tp := sdktrace.NewTracerProvider(	sdktrace.WithSampler(sdktrace.AlwaysSample()),
-										sdktrace.WithBatcher(traceExporter),
-										sdktrace.WithIDGenerator(idg),
-									)
-
-	otel.SetTracerProvider(tp)
+	tp := lib.NewTracerProvider(ctx, appServer.ConfigOTEL, appServer.InfoPod)
 	otel.SetTextMapPropagator(xray.Propagator{})
+	otel.SetTracerProvider(tp)
+	tracer = tp.Tracer(appServer.InfoPod.PodName)
 	// ----------------------------------
 
 	defer func() {
-		err = tp.Shutdown(ctx)
+		err := tp.Shutdown(ctx)
 		if err != nil{
 			childLogger.Error().Err(err).Msg("Erro closing OTEL tracer !!!")
 		}
@@ -99,18 +88,17 @@ func (c *ConsumerWorker) Consumer(	ctx context.Context,
 		wg.Done()
 	}()
 
-	topics := []string{topic}
+	topics := []string{appServer.KafkaConfig.Topic.Transfer}
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
 
-	err = c.consumer.SubscribeTopics(topics, nil)
+	err := c.consumer.SubscribeTopics(topics, nil)
 	if err != nil {
 		childLogger.Error().Err(err).Msg("Failed to subscriber topic")
 	}
 
 	run := true
 	for run {
-		
 		select {
 			case sig := <-sigchan:
 				childLogger.Debug().Interface("Caught signal terminating: ", sig).Msg("")
@@ -128,14 +116,6 @@ func (c *ConsumerWorker) Consumer(	ctx context.Context,
 				case kafka.PartitionEOF:
 					childLogger.Error().Interface("kafka.PartitionEOF: ",e).Msg("")
 				case *kafka.Message:
-
-					newSegment := "go-worker-transfer"
-					ctx, svcspan := otel.Tracer(newSegment).Start(ctx,"adapter.event.consumer")
-
-					//newSegment := "go-worker-transfer:"+ event.EventData.Transfer.AccountIDTo + ":" + strconv.Itoa(event.EventData.Transfer.ID)
-					//ctx, svcspan := otel.Tracer(newSegment).Start(ctx,"adapter.event.consumer")
-					//svcspan.End()
-
 					log.Print("----------------------------------")
 					if e.Headers != nil {
 						log.Printf("Headers: %v\n", e.Headers)
@@ -145,6 +125,8 @@ func (c *ConsumerWorker) Consumer(	ctx context.Context,
 					
 					event := core.Event{}
 					json.Unmarshal(e.Value, &event)
+
+					ctx, span := tracer.Start(ctx, "go-worker-transfer:" + event.EventData.Transfer.AccountIDFrom + ":" + event.EventData.Transfer.AccountIDTo)
 					
 					err = c.workerService.Transfer(ctx, *event.EventData.Transfer)
 					if err != nil {
@@ -155,8 +137,7 @@ func (c *ConsumerWorker) Consumer(	ctx context.Context,
 						c.consumer.Commit()
 					}
 
-					svcspan.End()
-					
+					span.End()
 				case kafka.Error:
 					childLogger.Error().Err(e).Msg("kafka.Error")
 					if e.Code() == kafka.ErrAllBrokersDown {

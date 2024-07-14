@@ -5,11 +5,10 @@ import (
 	"time"
 	"github.com/go-worker-transfer/internal/core"
 	"github.com/go-worker-transfer/internal/erro"
-	"go.opentelemetry.io/otel"
-	
+	"github.com/go-worker-transfer/internal/lib"
+
 	"github.com/rs/zerolog/log"
 	"github.com/go-worker-transfer/internal/repository/postgre"
-	//"github.com/go-worker-transfer/internal/adapter/restapi"
 	"github.com/go-worker-transfer/internal/adapter/event/producer"
 )
 
@@ -38,8 +37,7 @@ func (s WorkerService) Transfer(ctx context.Context,
 	childLogger.Debug().Msg("Transfer")
 	childLogger.Debug().Interface("===>transfer:",transfer).Msg("")
 	
-	ctx, svcspan := otel.Tracer("go-worker-transfer").Start(ctx,"svc.transfer")
-	defer svcspan.End()
+	span := lib.Span(ctx, "service.Transfer")	
 
 	tx, err := s.workerRepository.StartTx(ctx)
 	if err != nil {
@@ -68,6 +66,7 @@ func (s WorkerService) Transfer(ctx context.Context,
 			}
 			tx.Commit()
 		}
+		span.End()
 	}()
 
 	// Debit

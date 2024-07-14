@@ -10,8 +10,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/go-worker-transfer/internal/core"
-	"go.opentelemetry.io/otel"
-
+	"github.com/go-worker-transfer/internal/lib"
 )
 
 var childLogger = log.With().Str("repository", "WorkerRepository").Logger()
@@ -59,8 +58,8 @@ func (w WorkerRepository) Update(ctx context.Context, tx *sql.Tx, transfer core.
 	childLogger.Debug().Msg("Update")
 	childLogger.Debug().Interface("transfer : ", transfer).Msg("")
 
-	ctx, repospan := otel.Tracer("go-worker-transfer").Start(ctx,"repo.update")
-	defer repospan.End()
+	span := lib.Span(ctx, "repo.Update")	
+    defer span.End()
 
 	stmt, err := tx.Prepare(`Update transfer_moviment
 									set status = $2
@@ -90,8 +89,8 @@ func (w WorkerRepository) AddTransferMoviment(ctx context.Context, tx *sql.Tx ,t
 	childLogger.Debug().Msg("AddTransferMoviment")
 	childLogger.Debug().Interface("transfer:",transfer).Msg("")
 
-	ctx, repospan := otel.Tracer("go-worker-transfer").Start(ctx,"repo.addTransferMoviment")
-	defer repospan.End()
+	span := lib.Span(ctx, "repo.AddTransferMoviment")	
+    defer span.End()
 
 	stmt, err := tx.Prepare(`INSERT INTO transfer_moviment ( 	fk_account_id_from, 
 																fk_account_id_to,
