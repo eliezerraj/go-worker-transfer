@@ -8,25 +8,25 @@ import (
 	"github.com/go-worker-transfer/internal/lib"
 
 	"github.com/rs/zerolog/log"
-	"github.com/go-worker-transfer/internal/repository/postgre"
+	"github.com/go-worker-transfer/internal/repository/pg"
 	"github.com/go-worker-transfer/internal/adapter/event/producer"
 )
 
 var childLogger = log.With().Str("service", "service").Logger()
 
 type WorkerService struct {
-	workerRepository 		*postgre.WorkerRepository
-	producerWorker			*producer.ProducerWorker
-	topic					*core.Topic
+	workerRepo		*pg.WorkerRepository
+	producerWorker	*producer.ProducerWorker
+	topic			*core.Topic
 }
 
-func NewWorkerService(	workerRepository 	*postgre.WorkerRepository,
-						producerWorker		*producer.ProducerWorker,
-						topic				*core.Topic ) *WorkerService{
+func NewWorkerService(	workerRepo		*pg.WorkerRepository,
+						producerWorker	*producer.ProducerWorker,
+						topic			*core.Topic ) *WorkerService{
 	childLogger.Debug().Msg("NewWorkerService")
 
 	return &WorkerService{
-		workerRepository:	workerRepository,
+		workerRepo:	workerRepo,
 		producerWorker: 	producerWorker,
 		topic:				topic,
 	}
@@ -39,11 +39,11 @@ func (s WorkerService) Transfer(ctx context.Context,
 	
 	span := lib.Span(ctx, "service.Transfer")	
 
-	tx, err := s.workerRepository.StartTx(ctx)
+	tx, conn, err := s.workerRepo.StartTx(ctx)
 	if err != nil {
 		return err
 	}
-
+	
 	err = s.producerWorker.BeginTransaction()
 	if err != nil {
 		childLogger.Error().Err(err).Msg("Failed to Kafka BeginTransaction")
@@ -57,15 +57,16 @@ func (s WorkerService) Transfer(ctx context.Context,
 			if err != nil {
 				childLogger.Error().Err(err).Msg("Failed to Kafka AbortTransaction")
 			}
-			tx.Rollback()
+			tx.Rollback(ctx)
 		} else {
 			childLogger.Error().Err(err).Msg("service.Transfer COMMIT")
 			err = s.producerWorker.CommitTransaction(ctx)
 			if err != nil {
 				childLogger.Error().Err(err).Msg("Failed to Kafka CommitTransaction")
 			}
-			tx.Commit()
+			tx.Commit(ctx)
 		}
+		s.workerRepo.ReleaseTx(conn)
 		span.End()
 	}()
 
@@ -78,7 +79,7 @@ func (s WorkerService) Transfer(ctx context.Context,
 	transferFrom.Type = "DEBIT"
 	transferFrom.Amount = (transferFrom.Amount * -1)
 
-	res, err := s.workerRepository.AddTransferMoviment(ctx, tx, transferFrom)
+	res, err := s.workerRepo.AddTransferMoviment(ctx, tx, transferFrom)
 	if err != nil {
 		return err
 	}
@@ -98,7 +99,7 @@ func (s WorkerService) Transfer(ctx context.Context,
 	}
 
 	transferFrom.Status = "DEBIT_SCHEDULE"
-	res_update, err := s.workerRepository.Update(ctx,tx ,transferFrom)
+	res_update, err := s.workerRepo.Update(ctx,tx ,transferFrom)
 	if err != nil {
 		return err
 	}
@@ -114,7 +115,7 @@ func (s WorkerService) Transfer(ctx context.Context,
 	transferTo.AccountIDFrom = transferTo.AccountIDTo
 	transferTo.Type = "CREDIT"
 
-	res, err = s.workerRepository.AddTransferMoviment(ctx, tx, transferTo)
+	res, err = s.workerRepo.AddTransferMoviment(ctx, tx, transferTo)
 	if err != nil {
 		return err
 	}
@@ -134,7 +135,7 @@ func (s WorkerService) Transfer(ctx context.Context,
 	}
 
 	transferTo.Status = "CREDIT_SCHEDULE"
-	res_update, err = s.workerRepository.Update(ctx,tx ,transferTo)
+	res_update, err = s.workerRepo.Update(ctx,tx ,transferTo)
 	if err != nil {
 		return err
 	}
@@ -145,7 +146,7 @@ func (s WorkerService) Transfer(ctx context.Context,
 
 	// ----------------------------------
 	transfer.Status = "TRANSFER_DONE"
-	res_update, err = s.workerRepository.Update(ctx,tx ,transfer)
+	res_update, err = s.workerRepo.Update(ctx,tx ,transfer)
 	if err != nil {
 		return err
 	}

@@ -12,7 +12,7 @@ import(
 	"github.com/go-worker-transfer/internal/adapter/event/producer"
 	"github.com/go-worker-transfer/internal/core"
 	"github.com/go-worker-transfer/internal/service"
-	"github.com/go-worker-transfer/internal/repository/postgre"
+	"github.com/go-worker-transfer/internal/repository/pg"
 )
 
 var(
@@ -47,10 +47,10 @@ func main()  {
 
 	// Open Database
 	count := 1
-	var databaseHelper	postgre.DatabaseHelper
+	var databasePG	pg.DatabasePG
 	var err error
 	for {
-		databaseHelper, err = postgre.NewDatabaseHelper(ctx, appServer.Database)
+		databasePG, err = pg.NewDatabasePGServer(ctx, appServer.Database)
 		if err != nil {
 			if count < 3 {
 				log.Error().Err(err).Msg("Erro open Database... trying again !!")
@@ -65,8 +65,7 @@ func main()  {
 		break
 	}
 
-	repoDB := postgre.NewWorkerRepository(databaseHelper)
-
+	repoDB := pg.NewWorkerRepository(databasePG)
 	producerWorker, err := producer.NewProducerWorker(	ctx, 
 														appServer.KafkaConfig)
 	if err != nil {
