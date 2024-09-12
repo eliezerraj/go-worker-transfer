@@ -13,6 +13,7 @@ import(
 	"github.com/go-worker-transfer/internal/core"
 	"github.com/go-worker-transfer/internal/service"
 	"github.com/go-worker-transfer/internal/repository/pg"
+	"github.com/go-worker-transfer/internal/repository/storage"
 )
 
 var(
@@ -65,7 +66,7 @@ func main()  {
 		break
 	}
 
-	repoDB := pg.NewWorkerRepository(databasePG)
+	repoDB := storage.NewWorkerRepository(databasePG)
 	producerWorker, err := producer.NewProducerWorker(	ctx, 
 														appServer.KafkaConfig)
 	if err != nil {

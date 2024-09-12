@@ -8,19 +8,19 @@ import (
 	"github.com/go-worker-transfer/internal/lib"
 
 	"github.com/rs/zerolog/log"
-	"github.com/go-worker-transfer/internal/repository/pg"
+	"github.com/go-worker-transfer/internal/repository/storage"
 	"github.com/go-worker-transfer/internal/adapter/event/producer"
 )
 
 var childLogger = log.With().Str("service", "service").Logger()
 
 type WorkerService struct {
-	workerRepo		*pg.WorkerRepository
+	workerRepo		*storage.WorkerRepository
 	producerWorker	*producer.ProducerWorker
 	topic			*core.Topic
 }
 
-func NewWorkerService(	workerRepo		*pg.WorkerRepository,
+func NewWorkerService(	workerRepo		*storage.WorkerRepository,
 						producerWorker	*producer.ProducerWorker,
 						topic			*core.Topic ) *WorkerService{
 	childLogger.Debug().Msg("NewWorkerService")
@@ -79,7 +79,7 @@ func (s WorkerService) Transfer(ctx context.Context,
 	transferFrom.Type = "DEBIT"
 	transferFrom.Amount = (transferFrom.Amount * -1)
 
-	res, err := s.workerRepo.AddTransferMoviment(ctx, tx, transferFrom)
+	res, err := s.workerRepo.AddTransferMoviment(ctx, tx, &transferFrom)
 	if err != nil {
 		return err
 	}
@@ -99,7 +99,7 @@ func (s WorkerService) Transfer(ctx context.Context,
 	}
 
 	transferFrom.Status = "DEBIT_SCHEDULE"
-	res_update, err := s.workerRepo.Update(ctx,tx ,transferFrom)
+	res_update, err := s.workerRepo.Update(ctx, tx, &transferFrom)
 	if err != nil {
 		return err
 	}
@@ -115,7 +115,7 @@ func (s WorkerService) Transfer(ctx context.Context,
 	transferTo.AccountIDFrom = transferTo.AccountIDTo
 	transferTo.Type = "CREDIT"
 
-	res, err = s.workerRepo.AddTransferMoviment(ctx, tx, transferTo)
+	res, err = s.workerRepo.AddTransferMoviment(ctx, tx, &transferTo)
 	if err != nil {
 		return err
 	}
@@ -135,7 +135,7 @@ func (s WorkerService) Transfer(ctx context.Context,
 	}
 
 	transferTo.Status = "CREDIT_SCHEDULE"
-	res_update, err = s.workerRepo.Update(ctx,tx ,transferTo)
+	res_update, err = s.workerRepo.Update(ctx, tx, &transferTo)
 	if err != nil {
 		return err
 	}
@@ -146,7 +146,7 @@ func (s WorkerService) Transfer(ctx context.Context,
 
 	// ----------------------------------
 	transfer.Status = "TRANSFER_DONE"
-	res_update, err = s.workerRepo.Update(ctx,tx ,transfer)
+	res_update, err = s.workerRepo.Update(ctx,tx, &transfer)
 	if err != nil {
 		return err
 	}
