@@ -77,8 +77,7 @@ func main()  {
 												producerWorker,
 												appServer.KafkaConfig.Topic)
 
-	consumerWorker, err := event.NewConsumerWorker(	ctx, 
-													appServer.KafkaConfig, 
+	consumerWorker, err := event.NewConsumerWorker(	appServer.KafkaConfig, 
 													workerService,
 													appServer.ConfigOTEL)
 	if err != nil {

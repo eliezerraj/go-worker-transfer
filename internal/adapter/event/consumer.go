@@ -29,8 +29,7 @@ type ConsumerWorker struct{
 	configOTEL 		*core.ConfigOTEL
 }
 
-func NewConsumerWorker(	ctx context.Context, 
-						configurations *core.KafkaConfig,
+func NewConsumerWorker(	configurations *core.KafkaConfig,
 						workerService	*service.WorkerService,
 						configOTEL 		*core.ConfigOTEL) (*ConsumerWorker, error) {
 	childLogger.Debug().Msg("NewConsumerWorker")
@@ -98,6 +97,7 @@ func (c *ConsumerWorker) Consumer(	ctx context.Context,
 	}
 
 	run := true
+	event := core.Event{}
 	for run {
 		select {
 			case sig := <-sigchan:
@@ -123,11 +123,10 @@ func (c *ConsumerWorker) Consumer(	ctx context.Context,
 					log.Print("Value : " ,string(e.Value))
 					log.Print("-----------------------------------")
 					
-					event := core.Event{}
 					json.Unmarshal(e.Value, &event)
 
 					ctx, span := tracer.Start(ctx, "go-worker-transfer:" + event.EventData.Transfer.AccountIDFrom + ":" + event.EventData.Transfer.AccountIDTo)
-					
+			
 					err = c.workerService.Transfer(ctx, *event.EventData.Transfer)
 					if err != nil {
 						childLogger.Error().Err(err).Msg("Erro no Consumer.Transfer")
