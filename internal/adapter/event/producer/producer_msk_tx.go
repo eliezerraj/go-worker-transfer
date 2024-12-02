@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"context"
 	"fmt"
-//	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
@@ -59,7 +58,7 @@ func NewProducerWorker(ctx context.Context,
 func (p *ProducerWorker) Producer(ctx context.Context, event core.Event) error{
 	childLogger.Debug().Msg("Producer")
 
-	ctx, svcspan := otel.Tracer("go-worker-transfer").Start(ctx,"event.producer")
+	_, svcspan := otel.Tracer("go-worker-transfer").Start(ctx,"event.producer")
 	defer svcspan.End()
 
 	payload, err := json.Marshal(event)
@@ -108,6 +107,8 @@ func (p *ProducerWorker) Producer(ctx context.Context, event core.Event) error{
 }
 
 func (p *ProducerWorker) BeginTransaction() error{
+	childLogger.Debug().Msg("BeginTransaction")
+
 	err := p.producer.BeginTransaction();
 	if err != nil {
 		childLogger.Error().Err(err).Msg("Failed to BeginTransaction")
@@ -117,6 +118,8 @@ func (p *ProducerWorker) BeginTransaction() error{
 }
 
 func (p *ProducerWorker) CommitTransaction(ctx context.Context) error{
+	childLogger.Debug().Msg("CommitTransaction")
+
 	err := p.producer.CommitTransaction(ctx);
 	if err != nil {
 		childLogger.Error().Err(err).Msg("Failed to CommitTransaction")
@@ -126,6 +129,8 @@ func (p *ProducerWorker) CommitTransaction(ctx context.Context) error{
 }
 
 func (p *ProducerWorker) AbortTransaction(ctx context.Context) error{
+	childLogger.Debug().Msg("AbortTransaction")
+
 	err := p.producer.AbortTransaction(ctx);
 	if err != nil {
 		childLogger.Error().Err(err).Msg("Failed to AbortTransaction")

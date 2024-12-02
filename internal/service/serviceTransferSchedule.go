@@ -43,13 +43,13 @@ func (s WorkerService) Transfer(ctx context.Context,
 	if err != nil {
 		return err
 	}
-	
+	childLogger.Debug().Msg("+++++++++++++++++++++++++++++ 01 ")
 	err = s.producerWorker.BeginTransaction()
 	if err != nil {
 		childLogger.Error().Err(err).Msg("Failed to Kafka BeginTransaction")
 		return err
 	}
-
+	childLogger.Debug().Msg("+++++++++++++++++++++++++++++ 02 ")
 	defer func() {
 		if err != nil {
 			childLogger.Error().Err(err).Msg("service.Transfer ROLLBACK")
@@ -70,6 +70,8 @@ func (s WorkerService) Transfer(ctx context.Context,
 		span.End()
 	}()
 
+	childLogger.Debug().Msg("+++++++++++++++++++++++++++++ 1 ")
+
 	// Debit
 	// Register the moviment into table transfer_moviment (work as a history)
 	transferFrom := transfer
@@ -83,9 +85,9 @@ func (s WorkerService) Transfer(ctx context.Context,
 	if err != nil {
 		return err
 	}
-
+	childLogger.Debug().Msg("+++++++++++++++++++++++++++++ 2 ")
 	transferFrom.ID = res.ID
-	eventDataFrom := core.EventData{&transferFrom}
+	eventDataFrom := core.EventData{Transfer: &transferFrom}
 	event := core.Event{
 		Key: transfer.AccountIDFrom,
 		EventDate: time.Now(),
@@ -97,7 +99,7 @@ func (s WorkerService) Transfer(ctx context.Context,
 	if err != nil {
 		return err
 	}
-
+	childLogger.Debug().Msg("+++++++++++++++++++++++++++++ 3 ")
 	transferFrom.Status = "DEBIT_SCHEDULE"
 	res_update, err := s.workerRepo.Update(ctx, tx, &transferFrom)
 	if err != nil {
@@ -121,7 +123,7 @@ func (s WorkerService) Transfer(ctx context.Context,
 	}
 
 	transferTo.ID = res.ID
-	eventDataTo := core.EventData{&transferTo}
+	eventDataTo := core.EventData{Transfer: &transferTo}
 	event = core.Event{
 		Key: transfer.AccountIDTo,
 		EventDate: time.Now(),
