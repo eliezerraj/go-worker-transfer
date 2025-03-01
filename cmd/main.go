@@ -1,43 +1,48 @@
 package main
 
 import(
-	"sync"
-	"context"
 	"time"
+	"context"
+	"sync"
+
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
-	"github.com/go-worker-transfer/internal/util"
+	"github.com/go-worker-transfer/internal/infra/configuration"
+	"github.com/go-worker-transfer/internal/core/model"
+	"github.com/go-worker-transfer/internal/core/service"
+	"github.com/go-worker-transfer/internal/adapter/database"
 	"github.com/go-worker-transfer/internal/adapter/event"
-	"github.com/go-worker-transfer/internal/adapter/event/producer"
-	"github.com/go-worker-transfer/internal/core"
-	"github.com/go-worker-transfer/internal/service"
-	"github.com/go-worker-transfer/internal/repository/pg"
-	"github.com/go-worker-transfer/internal/repository/storage"
+	"github.com/go-worker-transfer/internal/infra/server"
+	go_core_pg "github.com/eliezerraj/go-core/database/pg"  
 )
 
 var(
-	logLevel 	= 	zerolog.DebugLevel
-	appServer	core.WorkerAppServer
+	logLevel = 	zerolog.DebugLevel
+	appServer	model.AppServer
+	databaseConfig go_core_pg.DatabaseConfig
+	databasePGServer go_core_pg.DatabasePGServer
 )
 
-func init() {
+func init(){
 	log.Debug().Msg("init")
 	zerolog.SetGlobalLevel(logLevel)
 
-	infoPod, restEndpoint := util.GetInfoPod()
-	database := util.GetDatabaseEnv()
-	configOTEL := util.GetOtelEnv()
-	kafkaConfig := util.GetKafkaEnv()
+	infoPod := configuration.GetInfoPod()
+	configOTEL 		:= configuration.GetOtelEnv()
+	databaseConfig 	:= configuration.GetDatabaseEnv() 
+	apiService 	:= configuration.GetEndpointEnv() 
+	kafkaConfigurations, topics := configuration.GetKafkaEnv() 
 
 	appServer.InfoPod = &infoPod
-	appServer.Database = &database
-	appServer.RestEndpoint = &restEndpoint
 	appServer.ConfigOTEL = &configOTEL
-	appServer.KafkaConfig = &kafkaConfig
+	appServer.DatabaseConfig = &databaseConfig
+	appServer.ApiService = apiService
+	appServer.KafkaConfigurations = &kafkaConfigurations
+	appServer.Topics = topics
 }
 
-func main()  {
+func main (){
 	log.Debug().Msg("----------------------------------------------------")
 	log.Debug().Msg("main")
 	log.Debug().Msg("----------------------------------------------------")
@@ -48,46 +53,38 @@ func main()  {
 
 	// Open Database
 	count := 1
-	var databasePG	pg.DatabasePG
 	var err error
 	for {
-		databasePG, err = pg.NewDatabasePGServer(ctx, appServer.Database)
+		databasePGServer, err = databasePGServer.NewDatabasePGServer(ctx, *appServer.DatabaseConfig)
 		if err != nil {
 			if count < 3 {
-				log.Error().Err(err).Msg("Erro open Database... trying again !!")
+				log.Error().Err(err).Msg("error open database... trying again !!")
 			} else {
-				log.Error().Err(err).Msg("Fatal erro open Database aborting")
+				log.Error().Err(err).Msg("fatal error open Database aborting")
 				panic(err)
 			}
-			time.Sleep(3 * time.Second)
+			time.Sleep(3 * time.Second) //backoff
 			count = count + 1
 			continue
 		}
 		break
 	}
 
-	repoDB := storage.NewWorkerRepository(databasePG)
-	producerWorker, err := producer.NewProducerWorker(	ctx, 
-														appServer.KafkaConfig)
+	// Database
+	database := database.NewWorkerRepository(&databasePGServer)
+	workerService := service.NewWorkerService(database, appServer.ApiService)
+
+	// Kafka
+	workerEvent, err := event.NewWorkerEvent(ctx, appServer.Topics, appServer.KafkaConfigurations)
 	if err != nil {
-		log.Error().Err(err).Msg("Erro na criacao do producer Kafka")
+		log.Error().Err(err).Msg("error open kafka")
+		panic(err)
 	}
 
-	workerService := service.NewWorkerService(	&repoDB, 
-												producerWorker,
-												appServer.KafkaConfig.Topic)
-
-	consumerWorker, err := event.NewConsumerWorker(	appServer.KafkaConfig, 
-													workerService,
-													appServer.ConfigOTEL)
-	if err != nil {
-		log.Error().Err(err).Msg("Erro na abertura do Kafka")
-	}
+	serverWorker := server.NewServerWorker(workerService, workerEvent)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	go consumerWorker.Consumer(	ctx, 
-								&wg, 
-								appServer)
+	go serverWorker.Consumer(ctx, &wg)
 	wg.Wait()
 }

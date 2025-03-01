@@ -1,4 +1,4 @@
-package util
+package configuration
 
 import(
 	"os"
@@ -11,22 +11,21 @@ import(
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/aws/aws-sdk-go-v2/config"
 
-	"github.com/go-worker-transfer/internal/core"
+	"github.com/go-worker-transfer/internal/core/model"
 )
 
-var childLogger = log.With().Str("util", "util").Logger()
+var childLogger = log.With().Str("infra", "configuration").Logger()
 
-func GetInfoPod() (	core.InfoPod,
-					core.RestEndpoint) {
+// Load the Pod configuration
+func GetInfoPod() (	model.InfoPod) {
 	childLogger.Debug().Msg("GetInfoPod")
 
 	err := godotenv.Load(".env")
 	if err != nil {
-		childLogger.Info().Err(err).Msg("No .env File !!!!")
+		childLogger.Info().Err(err).Msg("env file not found !!!")
 	}
 
-	var infoPod 	core.InfoPod
-	var restEndpoint core.RestEndpoint
+	var infoPod 	model.InfoPod
 
 	if os.Getenv("API_VERSION") !=  "" {
 		infoPod.ApiVersion = os.Getenv("API_VERSION")
@@ -39,11 +38,14 @@ func GetInfoPod() (	core.InfoPod,
 	} else {
 		infoPod.IsAZ = true
 	}
-
+	if os.Getenv("ENV") !=  "" {	
+		infoPod.Env = os.Getenv("ENV")
+	}
+	
 	// Get IP
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
-		log.Error().Err(err).Msg("Error to get the POD IP address !!!")
+		log.Error().Err(err).Msg("error to get the POD IP address")
 		os.Exit(3)
 	}
 	for _, a := range addrs {
@@ -56,16 +58,16 @@ func GetInfoPod() (	core.InfoPod,
 	infoPod.OSPID = strconv.Itoa(os.Getpid())
 
 	// Get AZ only if localtest is true
-	if (infoPod.IsAZ == true) {
+	if (infoPod.IsAZ) {
 		cfg, err := config.LoadDefaultConfig(context.TODO())
 		if err != nil {
-			childLogger.Error().Err(err).Msg("ERRO FATAL get Context !!!")
+			childLogger.Error().Err(err).Msg("fatal error get Context")
 			os.Exit(3)
 		}
 		client := imds.NewFromConfig(cfg)
 		response, err := client.GetInstanceIdentityDocument(context.TODO(), &imds.GetInstanceIdentityDocumentInput{})
 		if err != nil {
-			childLogger.Error().Err(err).Msg("Unable to retrieve the region from the EC2 instance !!!")
+			childLogger.Error().Err(err).Msg("unable to retrieve the region from the EC2 instance")
 			os.Exit(3)
 		}
 		infoPod.AvailabilityZone = response.AvailabilityZone	
@@ -73,12 +75,5 @@ func GetInfoPod() (	core.InfoPod,
 		infoPod.AvailabilityZone = "-"
 	}
 
-	if os.Getenv("SERVICE_URL_DOMAIN") !=  "" {	
-		restEndpoint.ServiceUrlDomain = os.Getenv("SERVICE_URL_DOMAIN")
-	}
-	if os.Getenv("X_APIGW_API_ID") !=  "" {	
-		restEndpoint.XApigwId = os.Getenv("X_APIGW_API_ID")
-	}
-
-	return infoPod, restEndpoint
+	return infoPod
 }

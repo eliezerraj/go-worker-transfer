@@ -7,7 +7,7 @@ metadata:
     app: *app-name
 data:
   POD_NAME: "go-transfer-credit"
-  API_VERSION: "2.1"
+  API_VERSION: "3.0"
   #DB_HOST: "db-arch.couoacqalfwt.us-east-2.rds.amazonaws.com"
   DB_HOST: "rds-proxy-db-arch.proxy-couoacqalfwt.us-east-2.rds.amazonaws.com"
   DB_PORT: "5432"
@@ -26,10 +26,20 @@ data:
   KAFKA_BROKER_3: "b-3.mskarch01.x25pj7.c3.kafka.us-east-2.amazonaws.com:9096"
   KAFKA_PARTITION: "3"
   KAFKA_REPLICATION: "2"
-  #SERVER_URL_DOMAIN: "http://svc-go-credit.test-a.svc.cluster.local:5001"
-  SERVICE_URL_DOMAIN: "https://vpce.global.dev.caradhras.io/pv"
-  X_APIGW_API_ID: "cy5ry2263h"
-  TOPIC_CREDIT: "topic.credit.01"
-  TOPIC_DEBIT: "topic.debit.01"
   TOPIC_TRANSFER: "topic.transfer.01"
   OTEL_EXPORTER_OTLP_ENDPOINT: "arch-eks-02-xray-collector.default.svc.cluster.local:4317"
+
+  NAME_SERVICE_01: "go-account"
+  URL_SERVICE_01: "https://vpce.global.dev.caradhras.io/pv/get"
+  METHOD_SERVICE_01: "GET"
+  X_APIGW_API_ID_SERVICE_01: "129t4y8eoj"
+
+  NAME_SERVICE_02: "go-debit"
+  URL_SERVICE_02: "https://vpce.global.dev.caradhras.io/pv/add"
+  METHOD_SERVICE_02: "POST"
+  X_APIGW_API_ID_SERVICE_02: "7egms7zn67"
+
+  NAME_SERVICE_03: "go-credit"
+  URL_SERVICE_03: "https://vpce.global.dev.caradhras.io/pv/add"
+  METHOD_SERVICE_03: "POST"
+  X_APIGW_API_ID_SERVICE_03: "cy5ry2263h"
