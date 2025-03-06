@@ -37,7 +37,7 @@ data:
   NAME_SERVICE_02: "go-debit"
   URL_SERVICE_02: "https://vpce.global.dev.caradhras.io/pv/add"
   METHOD_SERVICE_02: "POST"
-  X_APIGW_API_ID_SERVICE_02: "7egms7zn67"
+  X_APIGW_API_ID_SERVICE_02: "cy5ry2263h"
 
   NAME_SERVICE_03: "go-credit"
   URL_SERVICE_03: "https://vpce.global.dev.caradhras.io/pv/add"
