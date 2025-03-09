@@ -81,10 +81,10 @@ func main (){
 		panic(err)
 	}
 
-	serverWorker := server.NewServerWorker(workerService, workerEvent)
+	serverWorker := server.NewServerWorker(workerService,workerEvent)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	go serverWorker.Consumer(ctx, &wg)
+	go serverWorker.Consumer(ctx, &appServer, &wg)
 	wg.Wait()
 }
