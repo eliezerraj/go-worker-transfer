@@ -25,7 +25,7 @@ var(
 )
 
 func init(){
-	log.Debug().Msg("init")
+	log.Info().Msg("init")
 	zerolog.SetGlobalLevel(logLevel)
 
 	infoPod := configuration.GetInfoPod()
@@ -43,11 +43,11 @@ func init(){
 }
 
 func main (){
-	log.Debug().Msg("----------------------------------------------------")
-	log.Debug().Msg("main")
-	log.Debug().Msg("----------------------------------------------------")
-	log.Debug().Interface("appServer :",appServer).Msg("")
-	log.Debug().Msg("----------------------------------------------------")
+	log.Info().Msg("----------------------------------------------------")
+	log.Info().Msg("main")
+	log.Info().Msg("----------------------------------------------------")
+	log.Info().Interface("appServer :",appServer).Msg("")
+	log.Info().Msg("----------------------------------------------------")
 
 	ctx := context.Background()
 
